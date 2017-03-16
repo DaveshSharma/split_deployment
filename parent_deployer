@@ -1,0 +1,146 @@
+#!/bin/bash
+CWD=$(pwd)
+WORKDIR="/CRON/"
+
+GENXBEEPACKET="-b stable https://github.com/CRON-Systems/GenXbeePacket.git"
+GENCRONPACKET="-b stable https://github.com/CRON-Systems/GenCronPacket.git"
+SMREPO="-b stable https://github.com/CRON-Systems/serial-manager.git"
+CRONETCRONREPO="-b stable https://github.com/CRON-Systems/CRONet_cron.git"
+CRONETCRONAPI="-b stable https://github.com/CRON-Systems/cronet_cron_api.git"
+MICRONFRONTEND="-b stable https://github.com/CRON-Systems/micron_frontend.git"
+
+# installing CRONET dependencies
+function dep_install(){
+    echo "Installing dependencies ...."
+    source dependency_installer
+    if [ $? -ne 0 ] ; then
+        echo "Unable to install dependencies ...";
+        exit 1;
+    fi
+}
+
+function clone_repo(){
+    echo "Cloning git repo: $1";
+    git clone $(echo $1 | sed "s/\(https:\/\/\)\(.*\)$/\1${username}:${password}@\2/" )
+    if [ $? -ne 0 ] ; then
+        echo "Unable to clone repo -$1";
+        exit 1;
+    fi
+}
+
+function repoinstall(){
+    #Clone the repo
+    clone_repo "$1"
+
+    DIR=`basename ${1##*/} .git`
+
+    cd "$WORKDIR/$DIR"
+
+    FILE="./install"
+
+    # check if install file exits or not
+
+    if [ -e $FILE ] ; then
+	echo "Running installation script of '$DIR' repository.."
+        bash $FILE
+    fi
+
+    if [ $? -ne 0 ] ; then
+        echo "Installation failed for '$DIR'";
+        exit 1;
+    fi
+    echo "Installation completed for '$DIR'"
+    cd .. 
+}
+
+function install(){
+    echo "Creating build directory ..." $WORKDIR
+    mkdir -p $WORKDIR
+    cd $WORKDIR
+
+    repoinstall "$GENXBEEPACKET"
+    repoinstall "$GENCRONPACKET"
+    repoinstall "$SMREPO"
+    repoinstall "$CRONETCRONREPO"
+    repoinstall "$CRONETCRONAPI"
+    repoinstall "$MICRONFRONTEND"
+    cd $CWD 
+}
+
+function clean(){
+    echo "Cleaning $WORKDIR ...."
+    rm -rf $WORKDIR
+}
+
+function usage() {
+    echo -e "\033[01;37mUsage:\033[0;0m \033[01;36m$0\033[0;0m {\033[01;33minstall|clean\033[0;0m}";
+    exit 1;
+}
+
+function osm_install() {
+    echo "Installing OSM server ...."
+    source install_osm
+    if [ $? -ne 0 ] ; then
+        echo "Unable to install OSM Server ...";
+        exit 1;
+    fi
+}
+
+function rawurlencode() {
+  local string="${1}"
+  local strlen=${#string}
+  local encoded=""
+  local pos c o
+
+  for (( pos=0 ; pos<strlen ; pos++ )); do
+     c=${string:$pos:1}
+     case "$c" in
+        [-_.~a-zA-Z0-9] ) o="${c}" ;;
+        * )               printf -v o '%%%02x' "'$c"
+     esac
+     encoded+="${o}"
+  done
+  echo "${encoded}" 
+}
+
+function getcredentials() {
+    local u p
+    echo -n "Enter github username:"
+    read u
+    echo -n "Enter github password:"
+    read -s p
+    username=$(rawurlencode $u)
+    password=$(rawurlencode $p)
+    echo
+}
+
+function pm2_start() {
+    pm2 start $CWD/PM2.json
+    pm2 startup
+    pm2 save
+}
+
+function uwsgi_start() {
+    cp -rv $CWD/micron.ini cronet_cron_api.ini /etc/uwsgi/sites
+    cp -rv $CWD/micron /etc/nginx/sites-available/
+    ln -s /etc/nginx/sites-available/micron /etc/nginx/sites-enabled
+    systemctl restart emperor.uwsgi.service
+    systemctl restart nginx.service
+}
+
+case "$1" in
+    install)
+    getcredentials
+    dep_install
+    install
+    pm2_start
+    uwsgi_start
+    osm_install
+    ;;
+    clean)
+    clean
+    ;;
+    *)
+    usage ;
+    ;;
+esac

@@ -1,0 +1,28 @@
+{
+    "apps": [
+        {
+            "name": "SReader",
+            "script": "/CRON/serial-manager/serial_reader",
+	    "interpreter": "python",
+            "env": {
+                "PYTHONPATH": "/CRON/GenCronPacket/:/CRON/GenXbeePacket/"
+            }
+        },
+        {
+            "name": "SWriter",
+            "script": "/CRON/serial-manager/serial_writer",
+	    "interpreter": "python",
+            "env": {
+                "PYTHONPATH": "/CRON/GenCronPacket/:/CRON/GenXbeePacket/"
+            }
+        },
+	{
+            "name": "Worker",
+            "script": "/CRON/CRONet_cron/config_workers.js",
+	    "interpreter": "node",
+            "env": {
+            }
+        }
+
+    ]
+}

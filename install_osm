@@ -1,0 +1,106 @@
+#!/bin/bash
+echo "<========================== OSM Installing ... ================================>"
+CWD=$(pwd)
+
+echo "<================Postgres part start==================================>"
+sudo -H -u postgres bash -c "createuser osm"
+
+sudo -H -u postgres bash -c "createdb -E UTF8 -O osm gis"
+
+
+sudo -H -u postgres bash -c "psql -c 'CREATE EXTENSION hstore;' -d gis"
+
+sudo -H -u postgres bash -c "psql -c 'CREATE EXTENSION postgis;' -d gis"
+
+echo "<================Postgres part ends==================================>"
+
+sudo adduser osm --disabled-password --gecos ""
+
+# Initializing Map Stylesheet and Map Data
+
+sudo su - osm -c 'wget https://github.com/gravitystorm/openstreetmap-carto/archive/v2.41.0.tar.gz'
+
+sudo su - osm -c 'tar xvf v2.41.0.tar.gz'
+
+# Importing the map data to Postgresql
+
+echo "<==================importing data to postgres=========================>"
+
+sudo apt-get install osm2pgsql -y
+
+
+sudo su - osm -c 'osm2pgsql --slim -d gis -C 3600 --hstore -S openstreetmap-carto-2.41.0/openstreetmap-carto.style /home/test/Downloads/ind.pbf'
+
+# Installing mod_tile
+echo "<-------------------------- Installing mod_tile ---------------------------->"
+sudo apt-get install git autoconf libtool libmapnik-dev apache2-dev -y
+
+sudo git clone https://github.com/openstreetmap/mod_tile.git
+
+cd mod_tile/
+
+./autogen.sh
+./configure
+make
+sudo make install
+sudo make install-mod_tile
+cd $CWD 
+echo "<-------------------------- Installed mod_tile ---------------------------->"
+
+sudo apt-get install curl unzip gdal-bin mapnik-utils node-carto -y
+
+echo "<=================================Generating Maplink========================>"
+
+sudo su - osm -c 'exec "$HOME/openstreetmap-carto-2.41.0/get-shapefiles.sh"'
+sudo cp -rv /home/osm/data /home/osm/openstreetmap-carto-2.41.0/
+sudo su - osm -c 'carto $HOME/openstreetmap-carto-2.41.0/project.mml > $HOME/openstreetmap-carto-2.41.0/style.xml'
+#carto project.mml > style.xml
+
+# Configuring rendered
+echo "-------------------------- Configuring rendered ----------------------------"
+
+
+sudo sed -i 's/XML=\/home\/jburgess\/osm\/svn\.openstreetmap.org\/applications\/rendering\/mapnik\/osm-local\.xml/XML=\/home\/osm\/openstreetmap-carto-2\.41\.0\/style\.xml/g' /usr/local/etc/renderd.conf
+sudo sed -i 's/HOST=tile\.openstreetmap\.org/HOST=localhost/g' /usr/local/etc/renderd.conf
+sudo sed -i 's/plugins_dir=\/usr\/lib\/mapnik\/input/plugins_dir=\/usr\/lib\/mapnik\/3\.0\/input\//g' /usr/local/etc/renderd.conf
+
+echo "current path is $(pwd)"
+
+sudo cp -rv $CWD/mod_tile/debian/renderd.init /etc/init.d/renderd
+
+sudo chmod a+x /etc/init.d/renderd
+
+echo "<===========changes in renderd===================================>"
+
+
+#/etc/init.d/renderd = changes in this file
+
+sudo sed -i 's/DAEMON=\/usr\/bin\/\$NAME/DAEMON=\/usr\/local\/bin\/\$NAME/g' /etc/init.d/renderd
+
+sudo sed -i 's/DAEMON_ARGS=""/DAEMON_ARGS="-c \/usr\/local\/etc\/renderd\.conf"/g' /etc/init.d/renderd
+
+sudo sed -i 's/RUNASUSER=www-data/RUNASUSER=osm/g' /etc/init.d/renderd
+
+sudo mkdir -p /var/lib/mod_tile
+
+sudo chown osm:osm /var/lib/mod_tile
+
+sudo systemctl daemon-reload
+
+sudo systemctl start renderd
+
+sudo systemctl enable renderd
+
+sudo apt-get install apache2 -y
+
+sed -i 's/Listen.*80/Listen 8080/g' /etc/apache2/ports.conf
+
+sudo echo -e "LoadModule tile_module /usr/lib/apache2/modules/mod_tile.so" >> /etc/apache2/mods-available/mod_tile.load
+
+sudo ln -s /etc/apache2/mods-available/mod_tile.load /etc/apache2/mods-enabled/
+
+sudo cp -rv $CWD/000-default.conf /etc/apache2/sites-enabled/
+
+sudo systemctl restart apache2
+
+echo "<============================= OSM Installation Completed ==================================>"

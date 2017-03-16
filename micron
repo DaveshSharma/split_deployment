@@ -1,0 +1,31 @@
+server {
+    listen 80;
+    server_name micron.dev ;
+    
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location /static/ {
+        root /CRON/micron_frontend/micron;
+    }
+
+    location / {
+        include         uwsgi_params;
+        uwsgi_pass      unix:/run/uwsgi/micron_frontend.sock;
+    }
+}
+
+server {
+    listen 7000;
+    server_name micron.dev ;
+    
+
+#    location = /favicon.ico { access_log off; log_not_found off; }
+#    location /static/ {
+#        root /home/test/Downloads/build/cronet_cron_api;
+#    }
+
+    location / {
+        include         uwsgi_params;
+        uwsgi_pass      unix:/run/uwsgi/cronet_cron_api.sock;
+    }
+}
