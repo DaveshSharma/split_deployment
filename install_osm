@@ -1,106 +1,218 @@
 #!/bin/bash
-echo "<========================== OSM Installing ... ================================>"
+
 CWD=$(pwd)
+#
+#sudo -H -u postgres bash -c 'psql -c "\du"' | grep osm 
+#
+#if [ $? -ne 0 ] ; then
+#        echo "creating user......."
+#        sudo -H -u postgres bash -c "createuser osm"
+#else
+#        echo "user exists ";
+##        exit 1;
+#fi
+#
+#sudo -H -u postgres bash -c 'psql -c "\l"' | grep  osm
+#
+#if [ $? -ne 0 ] ; then
+#        echo "creating database......."
+#        sudo -H -u postgres bash -c "createdb -E UTF8 -O osm gis"
+#
+#else
+#        echo "database exists ";
+#        exit 1;
+#fi
+#
 
-echo "<================Postgres part start==================================>"
-sudo -H -u postgres bash -c "createuser osm"
-
-sudo -H -u postgres bash -c "createdb -E UTF8 -O osm gis"
-
-
-sudo -H -u postgres bash -c "psql -c 'CREATE EXTENSION hstore;' -d gis"
-
-sudo -H -u postgres bash -c "psql -c 'CREATE EXTENSION postgis;' -d gis"
-
-echo "<================Postgres part ends==================================>"
-
-sudo adduser osm --disabled-password --gecos ""
-
-# Initializing Map Stylesheet and Map Data
-
-sudo su - osm -c 'wget https://github.com/gravitystorm/openstreetmap-carto/archive/v2.41.0.tar.gz'
-
-sudo su - osm -c 'tar xvf v2.41.0.tar.gz'
-
-# Importing the map data to Postgresql
-
-echo "<==================importing data to postgres=========================>"
-
-sudo apt-get install osm2pgsql -y
-
-
-sudo su - osm -c 'osm2pgsql --slim -d gis -C 3600 --hstore -S openstreetmap-carto-2.41.0/openstreetmap-carto.style /home/test/Downloads/ind.pbf'
-
-# Installing mod_tile
-echo "<-------------------------- Installing mod_tile ---------------------------->"
-sudo apt-get install git autoconf libtool libmapnik-dev apache2-dev -y
-
-sudo git clone https://github.com/openstreetmap/mod_tile.git
-
-cd mod_tile/
-
-./autogen.sh
-./configure
-make
-sudo make install
-sudo make install-mod_tile
-cd $CWD 
-echo "<-------------------------- Installed mod_tile ---------------------------->"
-
-sudo apt-get install curl unzip gdal-bin mapnik-utils node-carto -y
-
-echo "<=================================Generating Maplink========================>"
-
-sudo su - osm -c 'exec "$HOME/openstreetmap-carto-2.41.0/get-shapefiles.sh"'
-sudo cp -rv /home/osm/data /home/osm/openstreetmap-carto-2.41.0/
-sudo su - osm -c 'carto $HOME/openstreetmap-carto-2.41.0/project.mml > $HOME/openstreetmap-carto-2.41.0/style.xml'
-#carto project.mml > style.xml
-
-# Configuring rendered
-echo "-------------------------- Configuring rendered ----------------------------"
+function dependency_install(){
+	sudo apt install postgresql postgresql-contrib postgis postgresql-9.5-postgis-2.2 -y
+	sudo apt install osm2pgsql -y
+	sudo apt install git autoconf libtool libmapnik-dev apache2-dev -y
+	sudo apt install curl unzip gdal-bin mapnik-utils node-carto -y
+	sudo apt install apache2 -y
+}	
 
 
-sudo sed -i 's/XML=\/home\/jburgess\/osm\/svn\.openstreetmap.org\/applications\/rendering\/mapnik\/osm-local\.xml/XML=\/home\/osm\/openstreetmap-carto-2\.41\.0\/style\.xml/g' /usr/local/etc/renderd.conf
-sudo sed -i 's/HOST=tile\.openstreetmap\.org/HOST=localhost/g' /usr/local/etc/renderd.conf
-sudo sed -i 's/plugins_dir=\/usr\/lib\/mapnik\/input/plugins_dir=\/usr\/lib\/mapnik\/3\.0\/input\//g' /usr/local/etc/renderd.conf
-
-echo "current path is $(pwd)"
-
-sudo cp -rv $CWD/mod_tile/debian/renderd.init /etc/init.d/renderd
-
-sudo chmod a+x /etc/init.d/renderd
-
-echo "<===========changes in renderd===================================>"
 
 
-#/etc/init.d/renderd = changes in this file
+function osm_user(){
+	echo "Checking user exists...."
+	sudo -H -u postgres bash -c 'psql -c "\du"' | grep osm 
+#	echo "$?"
+	if [ $? -ne 0 ] ; then
+#		echo " creating user.. "
+		sudo -H -u postgres bash -c "createuser osm"
+	else
+		echo "user exists";
+#		exit 1;
+	fi
+}
 
-sudo sed -i 's/DAEMON=\/usr\/bin\/\$NAME/DAEMON=\/usr\/local\/bin\/\$NAME/g' /etc/init.d/renderd
+function osm_database(){
+        
+	echo "Checking database exists...."
+	sudo -H -u postgres bash -c 'psql -c "\l"' | grep  gis
+        if [ $? -ne 0 ] ; then
+#		echo "creating database...."
+                sudo -H -u postgres bash -c "createdb -E UTF8 -O osm gis"
+        else
+                echo "database exists";
+#                exit 1;
+        fi
+}
 
-sudo sed -i 's/DAEMON_ARGS=""/DAEMON_ARGS="-c \/usr\/local\/etc\/renderd\.conf"/g' /etc/init.d/renderd
+function extension_checker(){
+	echo "checking extension & creating....."
+        sudo -H -u postgres bash -c "psql -c 'CREATE EXTENSION IF NOT EXISTS postgis;' -d gis"
+        sudo -H -u postgres bash -c "psql -c 'CREATE EXTENSION IF NOT EXISTS hstore;' -d gis"
+}
 
-sudo sed -i 's/RUNASUSER=www-data/RUNASUSER=osm/g' /etc/init.d/renderd
 
-sudo mkdir -p /var/lib/mod_tile
+function check_user(){
+	echo "Checking user exists....."
+#	grep osm /etc/passwd
+#	echo "$?"
+	osm_home="/home/osm"
+	if [ ! -d $osm_home ] ; then
+#	if [ $? -ne 0 ] ; then
+#        	echo "creating user...."
+		bash -c 'sudo adduser osm --disabled-password --gecos ""'
+	else 
+		echo " user exists......"
+	fi
+}
 
-sudo chown osm:osm /var/lib/mod_tile
+function openstreetcarto(){
+	echo "downloading...."
+	opencarto="/home/osm/v2.41.0.tar.gz"
+	if [ -f $opencarto ] ; then
+		echo "file exists...."
+	else
+		sudo su - osm -c 'wget https://github.com/gravitystorm/openstreetmap-carto/archive/v2.41.0.tar.gz'
+		sudo su - osm -c 'tar xvf v2.41.0.tar.gz'
+	
+		echo "downloaded & extracted...."
+	fi
+}
 
-sudo systemctl daemon-reload
+function import_map(){
+	echo "importing map file"
+	sudo -H -u postgres bash -c "psql -d gis -c '\dt'" | grep planet_osm*
+#	echo "$?"
+	if [ $? -ne 0 ] ; then
+		sudo su - osm -c 'osm2pgsql --slim -d gis -C 3600 --hstore -S openstreetmap-carto-2.41.0/openstreetmap-carto.style /home/test/Downloads/ind.pbf'
+	else
+		echo "already data is in postgres..."
+	fi
+}
 
-sudo systemctl start renderd
+function mod_tile(){
+	folder="mod_tile"
+	if [ -d $folder ] ; then
+		echo " mod folder exists"
+	else 
+	echo "$CWD"
+	sudo git clone https://github.com/openstreetmap/mod_tile.git
+	cd mod_tile/
+	sudo ./autogen.sh
+	sudo ./configure
+	sudo make
+	sudo make install
+	sudo make install-mod_tile
+	cd $CWD 
+	fi
+}
 
-sudo systemctl enable renderd
+function mapnik(){
+	echo "checking mapnik"
+	osm_data="/home/osm/data"
+	if [ ! -d $osm_data ]; then
+		sudo su - osm -c 'exec "$HOME/openstreetmap-carto-2.41.0/get-shapefiles.sh"'
+		sudo cp -rv /home/osm/data /home/osm/openstreetmap-carto-2.41.0/
+		sudo su - osm -c 'carto $HOME/openstreetmap-carto-2.41.0/project.mml > $HOME/openstreetmap-carto-2.41.0/style.xml'
+	else
+		echo "data exists"
+	fi
+}
 
-sudo apt-get install apache2 -y
+function renderd(){
+	sudo sed -i 's/XML=\/home\/jburgess\/osm\/svn\.openstreetmap.org\/applications\/rendering\/mapnik\/osm-local\.xml/XML=\/home\/osm\/openstreetmap-carto-2\.41\.0\/style\.xml/g' /usr/local/etc/renderd.conf
+	sudo sed -i 's/HOST=tile\.openstreetmap\.org/HOST=localhost/g' /usr/local/etc/renderd.conf
+	sudo sed -i 's/plugins_dir=\/usr\/lib\/mapnik\/input/plugins_dir=\/usr\/lib\/mapnik\/3\.0\/input\//g' /usr/local/etc/renderd.conf
 
-sed -i 's/Listen.*80/Listen 8080/g' /etc/apache2/ports.conf
+	echo "current path is $(pwd)"
+	sudo grep renderd /etc/init.d/renderd
+	if [ $? -ne 0 ] ; then
+	sudo cp -rv $CWD/mod_tile/debian/renderd.init /etc/init.d/renderd
+	sudo chmod a+x /etc/init.d/renderd
+	else 
+		echo "file exists..."
+	fi
+}
 
-sudo echo -e "LoadModule tile_module /usr/lib/apache2/modules/mod_tile.so" >> /etc/apache2/mods-available/mod_tile.load
 
-sudo ln -s /etc/apache2/mods-available/mod_tile.load /etc/apache2/mods-enabled/
+function changes_renderd(){
+	sudo sed -i 's/DAEMON=\/usr\/bin\/\$NAME/DAEMON=\/usr\/local\/bin\/\$NAME/g' /etc/init.d/renderd
 
-sudo cp -rv $CWD/000-default.conf /etc/apache2/sites-enabled/
+	sudo sed -i 's/DAEMON_ARGS=""/DAEMON_ARGS="-c \/usr\/local\/etc\/renderd\.conf"/g' /etc/init.d/renderd
+	
+	sudo sed -i 's/RUNASUSER=www-data/RUNASUSER=osm/g' /etc/init.d/renderd
+	mod="/var/lib/mod_tile"
+	if [ ! -d $mod ] ; then
+		sudo mkdir -p /var/lib/mod_tile
+		sudo chown osm:osm /var/lib/mod_tile
+	else 
+		echo "mod_tile folder exists....."
+	fi
+	sudo systemctl daemon-reload
+	sudo systemctl start renderd
+	
+	sudo systemctl enable renderd
+	
+}
 
-sudo systemctl restart apache2
+function apache_changes(){
+	sed -i 's/Listen.*80/Listen 8080/g' /etc/apache2/ports.conf
 
-echo "<============================= OSM Installation Completed ==================================>"
+	sudo echo -e "LoadModule tile_module /usr/lib/apache2/modules/mod_tile.so" >> /etc/apache2/mods-available/mod_tile.load
+	file="/etc/apache2/mods-enabled/mod_tile.load"
+	if [ -L $file ] ; then
+		echo "sym link exists ...."
+	else 
+	 	sudo ln -s /etc/apache2/mods-available/mod_tile.load /etc/apache2/mods-enabled/
+	fi
+	sudo cp -rv $CWD/000-default.conf /etc/apache2/sites-enabled/
+	
+	sudo systemctl restart apache2
+	sudo ldconfig
+	sudo systemctl restart renderd.service
+}	
+
+function osm_install(){
+	echo "starting map install....." $CWD
+}
+
+#function usage() {
+#    echo -e "\033[01;37mUsage:\033[0;0m \033[01;36m$0\033[0;0m {\033[01;33minstall|clean\033[0;0m}";
+#    exit 1;
+#}
+
+
+case osm_install in osm_install)
+#    dependency_install
+    osm_user
+    osm_database
+    extension_checker
+    check_user
+    openstreetcarto
+    import_map
+    mod_tile
+    mapnik
+    renderd
+    changes_renderd
+    apache_changes
+    ;;
+#    *)
+#    usage ;
+#    ;;
+esac

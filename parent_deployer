@@ -2,12 +2,12 @@
 CWD=$(pwd)
 WORKDIR="/CRON/"
 
-GENXBEEPACKET="-b stable https://github.com/CRON-Systems/GenXbeePacket.git"
-GENCRONPACKET="-b stable https://github.com/CRON-Systems/GenCronPacket.git"
-SMREPO="-b stable https://github.com/CRON-Systems/serial-manager.git"
-CRONETCRONREPO="-b stable https://github.com/CRON-Systems/CRONet_cron.git"
-CRONETCRONAPI="-b stable https://github.com/CRON-Systems/cronet_cron_api.git"
-MICRONFRONTEND="-b stable https://github.com/CRON-Systems/micron_frontend.git"
+GENXBEEPACKET="https://github.com/CRON-Systems/GenXbeePacket.git"
+GENCRONPACKET="https://github.com/CRON-Systems/GenCronPacket.git"
+SMREPO="https://github.com/CRON-Systems/serial-manager.git"
+CRONETCRONREPO="https://github.com/CRON-Systems/CRONet_cron.git"
+CRONETCRONAPI="https://github.com/CRON-Systems/cronet_cron_api.git"
+MICRONFRONTEND="https://github.com/CRON-Systems/micron_frontend.git"
 
 # installing CRONET dependencies
 function dep_install(){
@@ -18,6 +18,23 @@ function dep_install(){
         exit 1;
     fi
 }
+
+#function clone_repo(){
+#    echo "Cloning git repo: $1";
+#    expect <<DOC
+#    spawn git clone $1 
+#    expect "Username*:"
+#    send "${username}\r"
+#    expect "Password*:"
+#    send "${password}\r"
+#    expect timeout 60 
+#DOC
+#    echo "Status $?"
+#    if [ $? -ne 0 ] ; then
+#        echo "Unable to clone repo -$1";
+#        exit 1;
+#    fi
+#}
 
 function clone_repo(){
     echo "Cloning git repo: $1";
@@ -59,10 +76,10 @@ function install(){
     cd $WORKDIR
 
     repoinstall "$GENXBEEPACKET"
-    repoinstall "$GENCRONPACKET"
     repoinstall "$SMREPO"
     repoinstall "$CRONETCRONREPO"
     repoinstall "$CRONETCRONAPI"
+    repoinstall "$GENCRONPACKET"
     repoinstall "$MICRONFRONTEND"
     cd $CWD 
 }
@@ -130,8 +147,9 @@ function uwsgi_start() {
 
 case "$1" in
     install)
+#    dep_install
     getcredentials
-    dep_install
+#    dep_install
     install
     pm2_start
     uwsgi_start

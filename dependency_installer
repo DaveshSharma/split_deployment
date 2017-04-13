@@ -2,9 +2,12 @@
 
 CWD=$(pwd)
 apt-get update
-
+apt-get install expect -y
 # installing git on the machine
-
+apt install osm2pgsql -y
+apt install git autoconf libtool libmapnik-dev apache2-dev -y
+apt install curl unzip gdal-bin mapnik-utils node-carto -y
+apt install apache2 -y
 apt-get install git -y
 
 #installing pip for python 2
@@ -58,6 +61,7 @@ systemctl start nginx
 systemctl enable nginx
 systemctl enable emperor.uwsgi.service
 echo "127.0.0.1 micron.dev" >> /etc/hosts
+echo "127.0.0.1 micronapi.dev" >> /etc/hosts
 
 
 
