@@ -1,6 +1,6 @@
 #!/bin/bash
 CWD=$(pwd)
-WORKDIR="/CRON/"
+WORKDIR="/CRON1/"
 
 GENXBEEPACKET="https://github.com/CRON-Systems/GenXbeePacket.git"
 GENCRONPACKET="https://github.com/CRON-Systems/GenCronPacket.git"
@@ -21,13 +21,14 @@ function dep_install(){
 
 #function clone_repo(){
 #    echo "Cloning git repo: $1";
-#    expect <<DOC
+#    expect << DOC
+#    set timeout 60
 #    spawn git clone $1 
 #    expect "Username*:"
-#    send "${username}\r"
+#    send "$username\r"
 #    expect "Password*:"
-#    send "${password}\r"
-#    expect timeout 60 
+#    send "$password\r"
+#    interact 
 #DOC
 #    echo "Status $?"
 #    if [ $? -ne 0 ] ; then
@@ -147,9 +148,9 @@ function uwsgi_start() {
 
 case "$1" in
     install)
-#    dep_install
+    dep_install
     getcredentials
-#    dep_install
+    dep_install
     install
     pm2_start
     uwsgi_start

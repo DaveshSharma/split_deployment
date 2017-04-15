@@ -22,7 +22,12 @@
 	    "interpreter": "node",
             "env": {
             }
-        }
+        },
+	{
+	    "name" : "Heartbeatsender",
+	    "script" : "/CRON/CRONet_cron/send_heartbeat.js",
+            "interpreter" : "node"
+	}
 
     ]
 }
