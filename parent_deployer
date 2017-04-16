@@ -150,7 +150,6 @@ case "$1" in
     install)
     dep_install
     getcredentials
-    dep_install
     install
     pm2_start
     uwsgi_start
