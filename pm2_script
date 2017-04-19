@@ -1,0 +1,9 @@
+#!/bin/bash
+
+CWD=$(pwd)
+
+pm2 start $CWD/PM2.json
+pm2 startup
+pm2 save
+
+

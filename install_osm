@@ -61,7 +61,7 @@ function import_map(){
 	echo "importing map file"
 	sudo -H -u postgres bash -c "psql -d gis -c '\dt'" | grep planet_osm*
 	if [ $? -ne 0 ] ; then
-		sudo su - osm -c 'osm2pgsql --slim -d gis -C 3600 --hstore -S openstreetmap-carto-2.41.0/openstreetmap-carto.style /home/test/Downloads/ind.pbf'
+		sudo su - osm -c 'osm2pgsql --slim -d gis -C 3600 --hstore -S openstreetmap-carto-2.41.0/openstreetmap-carto.style /home/micron/Desktop/ind.pbf'
 	else
 		echo "already data is in postgres..."
 	fi
