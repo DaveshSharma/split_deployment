@@ -158,13 +158,13 @@ function udev_writer (){
 
 case "$1" in
     install)
-    dep_install
+#    dep_install
     getcredentials
     install
 #    pm2_start
     uwsgi_start
     udev_writer
-    osm_install
+    pm2_start
     ;;
     clean)
     clean
